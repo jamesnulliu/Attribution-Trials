@@ -1,0 +1,3 @@
+# Use only uv-managed Python interpreters; never the system Python.
+python-preference = "only-managed"
+python-downloads = "automatic"

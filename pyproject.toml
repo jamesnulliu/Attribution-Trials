@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "attribution-trials"
+version = "0.1.0"
+description = "Attribution Trials: a controlled audit of individual fidelity in user simulators."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "pyarrow>=14",
+    "matplotlib>=3.7",
+    "requests>=2.31",
+    "huggingface_hub>=0.24",
+]
+
+[project.optional-dependencies]
+# Model training and scoring (every GPU step).
+gpu = [
+    "torch>=2.3",
+    "transformers>=4.55",
+    "accelerate>=0.33",
+    "peft>=0.12",
+]
+# Lichess ingest.
+chess = [
+    "python-chess>=1.999",
+    "zstandard>=0.22",
+]
+# OpenAI-compatible API calls (LLM judge).
+api = [
+    "openai>=1.40",
+]
+# Optional experiment tracking for the latent-family trainer.
+wandb = [
+    "wandb>=0.17",
+]
+dev = [
+    "ruff>=0.6",
+]
+all = [
+    "attribution-trials[gpu,chess,api,wandb,dev]",
+]
+
+[project.scripts]
+attribution-trials = "attribution_trials.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+attribution_trials = ["figures/assets/*.png"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = ["E731", "E741"]
+
+[tool.ruff.format]
+quote-style = "preserve"

@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+
+# pipeline inputs and outputs
+/data/
+/models/
+/results/
+wandb/
+runs/
+
+# model weights and checkpoints
+*.safetensors
+*.ckpt
+*.pt
+*.bin
+
+# secrets
+.env
