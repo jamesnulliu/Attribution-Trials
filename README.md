@@ -1,72 +1,131 @@
-# Attribution Trials
+# Is There an Imposter Among Us? Auditing User Simulators with Attribution Trials
 
-Code for *Is There an Imposter Among Us? Auditing User Simulators with Attribution Trials*.
+Code for **Attribution Trials (AT)**, a controlled audit that tests whether a user simulator represents
+the individual it is given, rather than behavior shared by many users.
 
-Attribution Trials (AT) audits whether a user simulator represents the individual it is given.
-Each simulator predicts a user's held-out next actions under the target user's information (treatment)
-and under four controls: no user information, generic population information, matched-group information,
-and a matched imposter's information.
-AT reports the gain of the target's information over each control and credits individual fidelity only
-when all four gains are significant.
+![Attribution Trials overview](assets/headline.png)
 
-## Installation
+**Does a user simulator preserve individual fidelity?**
+(a) Waiting times of 41 OPeRA shoppers before their next action, real and predicted by four simulators
+given each user's own information, projected onto the real users' first two principal components.
+(b) AT compares the target user's information with four controls, and a simulator passes only when all
+four gains are significant; WildChat is the simulator-selection study.
 
-With [uv](https://docs.astral.sh/uv/) (uses a uv-managed Python, see `uv.toml`):
+## Abstract
+
+User simulators are commonly evaluated by their ability to steer toward the target user's behavior, given
+the user's profile or history.
+However, this similarity does not show whether the simulator captures what makes that individual unique,
+rather than behavior shared by many users.
+In interactive systems, this can lead to inaccurate simulations of users and thus, unreliable results.
+We identify this as the simulators' lack of *individual fidelity* – the ability to capture behavior unique
+to the intended user.
+We therefore develop Attribution Trials (AT), a controlled audit for testing whether a simulator represents
+that individual rather than merely responding to patterns shared across users.
+AT compares the target user's information (the treatment) with four controls: no user information, generic
+population information, matched-group information, and a matched imposter's information.
+We apply AT to next-action prediction on real user trajectories, for a variety of simulators on three
+datasets: chess playing, knowledge tracing, and online shopping.
+Across 84 combinations of simulators, datasets, and predicted behaviors, none shows individual fidelity.
+Existing user simulation benchmarks barely change their scores when an imposter's information replaces the
+target user's.
+Finally, AT can guide simulator selection: on WildChat, simulators with larger AT gains tend to generate
+text that moves closer to the user's real turn when given the target user's profile instead of an
+imposter's.
+Together, these findings show that apparent behavioral similarity can hide limited individual fidelity, and
+that AT can help choose the simulators that come closest to it.
+
+## Quick start
+
+### 1. Install
+
+With [uv](https://docs.astral.sh/uv/). `uv.toml` restricts uv to its own managed Python builds, so the
+system Python is never used:
 
 ```bash
-uv sync --extra all          # or pick extras: --extra gpu --extra chess --extra api
+git clone https://github.com/jamesnulliu/Is-There-an-Imposter-Among-Us-Auditing-User-Simulators-with-Attribution-Trials.git
+cd Is-There-an-Imposter-Among-Us-Auditing-User-Simulators-with-Attribution-Trials
+uv sync --extra all
+uv run python -m attribution_trials.cli --version
 ```
 
-With pip:
+With pip (Python 3.10 or newer):
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[all]"      # or pick extras: ".[gpu,chess,api]"
+pip install -e ".[all]"
 ```
 
-Extras: `gpu` (training and scoring), `chess` (Lichess ingest), `api` (OpenAI-compatible calls),
-`wandb` (optional tracking), `dev` (ruff). Format with `ruff format` and lint with `ruff check`.
+Extras: `gpu` (PyTorch, Transformers, PEFT, Accelerate for training and scoring), `chess` (Lichess
+ingest), `api` (OpenAI-compatible calls), `wandb` (optional tracking), `dev` (ruff).
+Choose a subset with `uv sync --extra gpu --extra chess` or `pip install -e ".[gpu,chess]"`.
+If the default PyTorch wheel does not match your accelerator, install the matching PyTorch build first.
 
-Every step is a module run from the repository root, e.g. `python -m attribution_trials.analysis.gains`
-(with uv: `uv run python -m ...`).
-
-## Paths and credentials
+### 2. Configure
 
 | Variable | Default | Content |
 |---|---|---|
 | `AT_DATA` | `data/` | raw and prepared datasets |
 | `AT_MODELS` | `models/` | local model checkpoints |
-| `AT_RESULTS` | `results/` | every output (`audit/`, `analysis/`, `comparison/`, `wildchat/`, `validation/`, `figures/`, `tables/`) |
+| `AT_RESULTS` | `results/` | every output: `audit/`, `analysis/`, `comparison/`, `wildchat/`, `validation/`, `figures/`, `tables/` |
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL` | | API models, the known-signal controls and the LLM judge |
 | `HF_TOKEN` | | gated Hugging Face downloads |
 | `WANDB_API_KEY` | | optional; tracking is skipped without it |
 
-## Data
+### 3. Get the data
 
-- **Lichess** (chess): `bash scripts/data/lichess.sh` downloads three monthly archives of the Lichess open
-  database and ingests the three blitz cohorts of the pooled chess panel.
-- **ASSISTments 2009** (knowledge tracing): place `skill_builder_data_corrected.csv` in `$AT_DATA/kt/raw/`, then
-  `python -m attribution_trials.data.prepare_kt`.
-- **OPeRA** (online shopping): downloaded at a pinned revision on first use (`attribution_trials.data.opera`).
-- **WildChat-1M**: `bash scripts/download/wildchat.sh`.
-- **PersonaMem** and **HorizonBench**: downloaded at pinned revisions by the validation modules.
+```bash
+bash scripts/data/lichess.sh                        # chess: three Lichess blitz cohorts
+# knowledge tracing: put ASSISTments 2009 skill_builder_data_corrected.csv in $AT_DATA/kt/raw/
+python -m attribution_trials.data.prepare_kt
+bash scripts/download/wildchat.sh                   # WildChat-1M at a pinned revision
+bash scripts/download/released_simulators.sh        # CoSER-8B, HumanLike-7B
+bash scripts/download/wildchat_models.sh            # WildChat simulators and the MiniLM encoder
+```
 
-## Pipeline
+OPeRA, PersonaMem and HorizonBench are downloaded at pinned revisions on first use.
 
-### 1. Audit: per-user scores under the five conditions (Section 4)
+### 4. Run a first experiment (CPU, no data)
+
+The synthetic-population checks need neither datasets nor GPUs:
+
+```bash
+python -m attribution_trials.validation.lambda_sweep       # known individual signal, varying strength
+python -m attribution_trials.validation.reference_nulls    # weaker controls vs the matched imposter
+```
+
+### 5. Run the experiments
+
+Every step is a module (`python -m attribution_trials.<stage>.<module>`, or `uv run python -m ...`) or a
+shell driver in `scripts/`. Outputs land under `$AT_RESULTS`. Run the stages in this order:
+
+| Stage | Entry points | Paper |
+|---|---|---|
+| Audit | `scripts/audit/*.sh` | Section 4 |
+| Gains and significance | `attribution_trials.analysis.*` | Section 5.1, Appendices A–C |
+| Existing benchmarks and per-user baselines | `scripts/comparison/*.sh` | Section 5.2, Appendices C–D |
+| Simulator selection on WildChat | `attribution_trials.wildchat.*`, `scripts/wildchat/*.sh` | Section 5.3, Appendix E |
+| Validation and ablations | `attribution_trials.validation.*`, `scripts/validation/dose.sh` | Section 6, Appendix F |
+| Figures and tables | `attribution_trials.figures.*`, `attribution_trials.tables.*` | |
+
+The full command sequence is below. GPU steps need a CUDA GPU; the 30–32B models need about 80 GB of GPU
+memory. The figures use the Times New Roman font.
+
+## Reproducing the paper
+
+### Audit: per-user scores under the five conditions (Section 4)
 
 ```bash
 bash scripts/audit/latent_families.sh             # static embedding, recurrent embedding, structured memory
 bash scripts/audit/lora_matrix.sh [n_gpus]        # user-profile LoRA, chess and KT
 bash scripts/audit/frozen_panel.sh                # frozen prompt, chess and KT
 bash scripts/audit/run_opera_jobs.sh [n_gpus]     # user-profile LoRA and frozen prompt, OPeRA
-bash scripts/download/released_simulators.sh
 bash scripts/audit/released_panel.sh              # CoSER-8B, HumanLike-7B
 bash scripts/audit/osim_panel.sh                  # Osim-4B/8B, with and without midtraining
 bash scripts/audit/api_panel.sh                   # GPT-4.1, GPT-4.1-mini, DeepSeek-V3.2
 ```
 
-### 2. Gains, significance and the main results (Section 5.1, Appendices A–C)
+### Gains, significance and the main results (Section 5.1, Appendices A–C)
 
 ```bash
 python -m attribution_trials.analysis.identity
@@ -80,9 +139,9 @@ python -m attribution_trials.tables.master_ladder
 python -m attribution_trials.tables.seed_inference
 ```
 
-`analysis.shares` and `tables.main_results` run after steps 3 and 4, whose outputs they read.
+`analysis.shares` and `tables.main_results` read outputs of the next two stages and run after them.
 
-### 3. Existing benchmarks and per-user baselines (Section 5.2, Appendices C–D)
+### Existing benchmarks and per-user baselines (Section 5.2, Appendices C–D)
 
 ```bash
 bash scripts/comparison/per_option_frozen.sh
@@ -94,10 +153,9 @@ bash scripts/comparison/cpu_readouts.sh           # readouts, marginal and stron
 python -m attribution_trials.analysis.shares
 ```
 
-### 4. Simulator selection on WildChat (Section 5.3, Appendix E)
+### Simulator selection on WildChat (Section 5.3, Appendix E)
 
 ```bash
-bash scripts/download/wildchat_models.sh
 python -m attribution_trials.wildchat.build_panel
 python -m attribution_trials.wildchat.build_frame
 GPUS=0,1,2,3,4,5,6 bash scripts/wildchat/score_trial.sh
@@ -114,7 +172,7 @@ python -m attribution_trials.tables.temperature_check
 python -m attribution_trials.tables.main_results
 ```
 
-### 5. Validation and ablations (Section 6, Appendix F)
+### Validation and ablations (Section 6, Appendix F)
 
 ```bash
 # known-signal controls
@@ -147,7 +205,7 @@ python -m attribution_trials.tables.matcher_hierarchy
 python -m attribution_trials.tables.stress_nulls
 ```
 
-### 6. Figures
+### Figures
 
 ```bash
 python -m attribution_trials.figures.headline_data
@@ -155,7 +213,22 @@ python -m attribution_trials.figures.headline
 python -m attribution_trials.figures.dose_ladder
 ```
 
-The figures use the Times New Roman font.
+## Repository layout
+
+```
+src/attribution_trials/
+  bench/ data/ eval/ experiments/ latent/ policy/ train/   core library: data loaders, condition
+                                                          construction, latent families, trainers
+  audit/        per-user scores of every simulator under the five conditions
+  analysis/     gains, bootstrap intervals, Holm correction, seed-aware inference
+  comparison/   existing-benchmark scores, per-user marginal and stronger baselines
+  wildchat/     simulator selection on WildChat
+  validation/   known-signal controls, synthetic populations, closer imposters, dose
+  figures/      figure generators
+  tables/       LaTeX table generators
+  paths.py      data, model and result locations
+scripts/        shell drivers (data, download, audit, comparison, wildchat, validation)
+```
 
 ## License
 
