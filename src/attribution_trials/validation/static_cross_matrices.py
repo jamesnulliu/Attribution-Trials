@@ -49,7 +49,7 @@ TRAIN_FRAC = 0.7
 def chess_pooled():
     from attribution_trials.data.pooled_chess import backbone_factory, build_pooled_chess
 
-    data, cells, _, dropped = build_pooled_chess("cohort-tertile")
+    data, cells, _, dropped = build_pooled_chess()
     return {
         "data": data,
         "cells": cells,

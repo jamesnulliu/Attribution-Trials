@@ -66,7 +66,7 @@ def boot_mean(values: np.ndarray) -> tuple[float, float, float]:
 def chess_features() -> dict[str, np.ndarray]:
     from attribution_trials.data.pooled_chess import build_pooled_chess
 
-    data, _, _, _ = build_pooled_chess("cohort-tertile")
+    data, _, _, _ = build_pooled_chess()
     trajs = data.trajectories
     splits = session_split_indices(trajs, TRAIN_FRAC)
     out = {}

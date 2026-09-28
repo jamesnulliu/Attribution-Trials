@@ -62,7 +62,7 @@ def assemble_channel(
 def chess_move() -> dict:
     from attribution_trials.data.pooled_chess import build_pooled_chess
 
-    data, cells, cohort_of, dropped = build_pooled_chess("cohort-tertile")
+    data, cells, cohort_of, dropped = build_pooled_chess()
     trajs = data.trajectories
     splits = session_split_indices(trajs, TRAIN_FRAC)
     users = [t.player_id for t in trajs]

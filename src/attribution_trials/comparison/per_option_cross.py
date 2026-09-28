@@ -52,7 +52,7 @@ def chess_pooled():
         build_pooled_chess,
     )
 
-    data, cells, _, dropped = build_pooled_chess("cohort-tertile")
+    data, cells, _, dropped = build_pooled_chess()
     return {
         "data": data,
         "cells": cells,

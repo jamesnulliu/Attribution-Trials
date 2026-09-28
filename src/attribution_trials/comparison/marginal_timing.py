@@ -57,7 +57,7 @@ def fit_and_score(users, train, heldout, cells) -> dict:
 
 
 def chess_data() -> dict:
-    data, cells, _, dropped = build_pooled_chess("cohort-tertile")
+    data, cells, _, dropped = build_pooled_chess()
     trajectories = data.trajectories
     splits = session_split_indices(trajectories, TRAIN_FRAC)
     users = [trajectory.player_id for trajectory in trajectories]

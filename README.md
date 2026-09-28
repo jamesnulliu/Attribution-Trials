@@ -43,7 +43,8 @@ Every step is a module run from the repository root, e.g. `python -m attribution
 
 ## Data
 
-- **Lichess** (chess): ingest monthly blitz archives with `attribution-trials ingest <archive.pgn.zst> --out <dir>`.
+- **Lichess** (chess): `bash scripts/data/lichess.sh` downloads three monthly archives of the Lichess open
+  database and ingests the three blitz cohorts of the pooled chess panel.
 - **ASSISTments 2009** (knowledge tracing): place `skill_builder_data_corrected.csv` in `$AT_DATA/kt/raw/`, then
   `python -m attribution_trials.data.prepare_kt`.
 - **OPeRA** (online shopping): downloaded at a pinned revision on first use (`attribution_trials.data.opera`).
@@ -55,11 +56,13 @@ Every step is a module run from the repository root, e.g. `python -m attribution
 ### 1. Audit: per-user scores under the five conditions (Section 4)
 
 ```bash
+bash scripts/audit/latent_families.sh             # static embedding, recurrent embedding, structured memory
 bash scripts/audit/lora_matrix.sh [n_gpus]        # user-profile LoRA, chess and KT
 bash scripts/audit/frozen_panel.sh                # frozen prompt, chess and KT
 bash scripts/audit/run_opera_jobs.sh [n_gpus]     # user-profile LoRA and frozen prompt, OPeRA
 bash scripts/download/released_simulators.sh
 bash scripts/audit/released_panel.sh              # CoSER-8B, HumanLike-7B
+bash scripts/audit/osim_panel.sh                  # Osim-4B/8B, with and without midtraining
 bash scripts/audit/api_panel.sh                   # GPT-4.1, GPT-4.1-mini, DeepSeek-V3.2
 ```
 
