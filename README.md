@@ -43,8 +43,8 @@ With [uv](https://docs.astral.sh/uv/). `uv.toml` restricts uv to its own managed
 system Python is never used:
 
 ```bash
-git clone https://github.com/jamesnulliu/Is-There-an-Imposter-Among-Us-Auditing-User-Simulators-with-Attribution-Trials.git
-cd Is-There-an-Imposter-Among-Us-Auditing-User-Simulators-with-Attribution-Trials
+git clone https://github.com/jamesnulliu/Attribution-Trials.git
+cd Attribution-Trials
 uv sync --extra all
 uv run python -m attribution_trials.cli --version
 ```
