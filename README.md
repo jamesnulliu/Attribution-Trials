@@ -89,6 +89,7 @@ bash scripts/comparison/per_option_frozen.sh
 bash scripts/comparison/per_option_olmo.sh
 bash scripts/comparison/per_option_released.sh
 bash scripts/comparison/per_option_cross.sh
+bash scripts/comparison/coverage_inputs.sh       # per-option rescoring for the population-realism row
 bash scripts/comparison/cpu_readouts.sh           # readouts, marginal and stronger baselines, tables
 python -m attribution_trials.analysis.shares
 ```

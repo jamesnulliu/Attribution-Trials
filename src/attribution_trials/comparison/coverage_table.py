@@ -1,11 +1,12 @@
 """Population-realism table: the coverage basket over every method-implied
 population, against the matching real per-user profiles.
 
-Populations (inputs under <COMPARISON>/coverage_inputs):
+Populations (inputs under <COMPARISON>/coverage_inputs, written by
+comparison.rescore_opera and comparison.rescore_chess):
 - OPeRA per-option rescores `gpu/rescore_opera-*.json` (Qwen3-8B and Osim-8B,
   action/timing channels).  R = per-user label histograms (min 3 decisions),
   G = per-user mean predictive distributions.
-- Chess / KT-RT timing `cpu/*.npz`, same construction over timing buckets.
+- Chess timing `cpu/chess_*.npz`, same construction over timing buckets.
 
 Two reference rows per domain are added: `::trap` (point mass at the
 population mean) and `::boot` (a bootstrap resample of R).  Rows without `::`
@@ -94,15 +95,8 @@ def main() -> None:
         rows.append(row(cell, R, G))
         domains_seen.setdefault(("opera-" + cell.split("-")[1]).split("_")[0], R)
         print("done", cell, flush=True)
-    for path in sorted((INPUTS / "cpu").glob("*.npz")):
-        if "chess" not in path.name and "kt_rt" not in path.name:
-            continue
-        try:
-            R, G = npz_timing_profiles(path)
-        except KeyError:
-            continue
-        if len(R) < 10:
-            continue
+    for path in sorted((INPUTS / "cpu").glob("chess_*.npz")):
+        R, G = npz_timing_profiles(path)
         cell = path.stem + "_timing"
         rows.append(row(cell, R, G))
         domains_seen.setdefault(path.stem.split("_")[0] + "-timing", R)

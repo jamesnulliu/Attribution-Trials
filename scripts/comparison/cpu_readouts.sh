@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # CPU steps of the existing-benchmark comparison and the per-user baselines,
 # in dependency order. Requires the per-option GPU outputs (per_option_*.sh),
-# the audit results, and <ANALYSIS>/gains.json (attribution_trials.analysis.gains).
+# the coverage-table inputs (coverage_inputs.sh), the audit results, and
+# <ANALYSIS>/gains.json (attribution_trials.analysis.gains).
 set -euo pipefail
 
 # Existing-benchmark comparison (tab:comparison-upstream) and the Olmo counts
