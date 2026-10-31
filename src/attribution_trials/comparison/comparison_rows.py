@@ -6,10 +6,14 @@ static-embedding cross matrices to load_cells()'s 84 keys:
   join             the two `_cap1024` cells are the chess prompt-cap control
                    and stay out; the three Olmo cells are outside the 84 and
                    get their own block
-  accuracy         favourable = accuracy gain A4f-A0 > 0, point estimate; the
+  accuracy         favourable = paired-user bootstrap interval of
+                   accuracy(A4f) - accuracy(A0) above zero; the same with A3
+                   for the imposter side
+  total_variation  one distribution per cell; favourable = paired-user
+                   bootstrap interval of TVD(A0) - TVD(A4f) above zero; the
                    same with A3 for the imposter side
-  total_variation  one distribution per cell; favourable = mean TVD under A4f
-                   below A0; the same with A3 for the imposter side
+                   (accuracy and total variation resample users and recompute
+                   the pooled statistic, B = 10,000, their own RNG stream)
   population       score kept = JS(A3) / JS(A4f)
   random_profile   static-embedding family only; the random unrelated donor is
                    the mean over every other user of the cross matrix;
@@ -65,6 +69,10 @@ def fav(x):
     return x['high'] < 0
 
 
+def above(x):
+    return x['low'] > 0
+
+
 def dataset(c):
     return 'OPeRA' if c['panel'] != 'full tier' else ('chess' if 'chess' in c['key'] else 'KT')
 
@@ -81,6 +89,45 @@ def key_of(cell):
         return f'persona-frozen|{sub} ({model})|' + ('timing' if sub == 'chess' else 'response')
     _, ch, cfg = sub.split('-')
     return f'{fam}|{ch}|{cfg}|{model}'
+
+
+def softmax(lp):
+    e = np.exp(lp - lp.max(axis=1, keepdims=True))
+    return e / e.sum(axis=1, keepdims=True)
+
+
+def user_boot(z, rng):
+    """Paired bootstrap over users of the accuracy and TVD gains of A4f and A3 over A0
+    (positive = closer to the real behavior); row 0 of W is the observed sample."""
+    lab = z['labels']
+    users, inv = np.unique(z['players'], return_inverse=True)
+    nu, nl = len(users), len(z['label_set'])
+    W = np.vstack(
+        [np.ones(nu)] + [np.bincount(rng.integers(0, nu, nu), minlength=nu) for _ in range(B)]
+    )
+
+    def pooled(x):
+        """Per-row values -> pooled mean under each resample."""
+        tot = np.zeros((nu,) + x.shape[1:])
+        np.add.at(tot, inv, x)
+        n = W @ np.bincount(inv, minlength=nu)
+        return (W @ tot) / n.reshape((-1,) + (1,) * (x.ndim - 1))
+
+    real = pooled(np.eye(nl)[lab])
+    acc = {a: pooled((z[f'logp_{a}'].argmax(axis=1) == lab).astype(float)) for a in ARMS}
+    tvd = {a: 0.5 * np.abs(real - pooled(softmax(z[f'logp_{a}']))).sum(axis=1) for a in ARMS}
+
+    def iv(g):
+        return {
+            'point': float(g[0]),
+            'low': float(np.percentile(g[1:], 2.5)),
+            'high': float(np.percentile(g[1:], 97.5)),
+        }
+
+    return {
+        'accuracy': (iv(acc['A4f'] - acc['A0']), iv(acc['A3'] - acc['A0'])),
+        'total_variation': (iv(tvd['A0'] - tvd['A4f']), iv(tvd['A0'] - tvd['A3'])),
+    }
 
 
 def per_user_nll(z, arm):
@@ -166,40 +213,55 @@ def main() -> None:
     }
 
     rows = {}
-    # ------------------------------------------------------------ accuracy (point rule)
-    flags, kept = {}, []
+    rng = np.random.default_rng(20261030)
+    ub = {
+        k: user_boot(np.load(PER_OPTION / f'{cell_of[k]}.npz', allow_pickle=True), rng)
+        for k in groups
+    }
+    # ------------------------------------------------------------ accuracy
+    flags, kept, acc_cells = {}, [], {}
     for k in groups:
         acc = u4[cell_of[k]]['accuracy']
-        g, s = acc['A4f'] - acc['A0'], acc['A3'] - acc['A0']
-        flags[k] = (dataset(by_key[k]), g > 0, s > 0)
-        if g > 0:
-            kept.append(100 * s / g)
+        t, s = ub[k]['accuracy']
+        assert abs(t['point'] - (acc['A4f'] - acc['A0'])) < 1e-9, k
+        flags[k] = (dataset(by_key[k]), above(t), above(s))
+        if above(t):
+            kept.append(100 * s['point'] / t['point'])
+        acc_cells[k] = {
+            'dataset': dataset(by_key[k]),
+            'favourable': above(t),
+            'stranger_favourable': above(s),
+            'target_minus_none': t,
+            'stranger_minus_none': s,
+        }
     rows['accuracy'] = row_counts(flags, kept)
-    rows['accuracy']['rule'] = 'favourable = accuracy(A4f) > accuracy(A0), point estimate'
-    rows['accuracy']['cells'] = {
-        k: {'dataset': v[0], 'favourable': bool(v[1]), 'stranger_favourable': bool(v[2])}
-        for k, v in flags.items()
-    }
+    rows['accuracy']['rule'] = (
+        '95% paired-user bootstrap interval of accuracy(A4f) - accuracy(A0) above zero'
+    )
+    rows['accuracy']['cells'] = acc_cells
 
     # ------------------------------------------------------------ total variation, one distribution per cell
-    flags, kept = {}, []
+    flags, kept, tv_cells = {}, [], {}
     for k in groups:
         tvd = {a: u5[cell_of[k]][a]['mean_tvd'] for a in ARMS}
-        g, s = (
-            tvd['A0'] - tvd['A4f'],
-            tvd['A0'] - tvd['A3'],
-        )  # reduction in TVD, positive = closer to real
-        flags[k] = (dataset(by_key[k]), g > 0, s > 0)
-        if g > 0:
-            kept.append(100 * s / g)
+        t, s = ub[k]['total_variation']  # reduction in TVD, positive = closer to real
+        assert abs(t['point'] - (tvd['A0'] - tvd['A4f'])) < 1e-9, k
+        flags[k] = (dataset(by_key[k]), above(t), above(s))
+        if above(t):
+            kept.append(100 * s['point'] / t['point'])
+        tv_cells[k] = {
+            'dataset': dataset(by_key[k]),
+            'favourable': above(t),
+            'stranger_favourable': above(s),
+            'target_minus_none': t,
+            'stranger_minus_none': s,
+        }
     rows['total_variation'] = row_counts(flags, kept)
     rows['total_variation']['rule'] = (
-        'favourable = mean TVD(A4f) < mean TVD(A0), one distribution per cell'
+        '95% paired-user bootstrap interval of TVD(A0) - TVD(A4f) above zero, '
+        'one distribution per cell'
     )
-    rows['total_variation']['cells'] = {
-        k: {'dataset': v[0], 'favourable': bool(v[1]), 'stranger_favourable': bool(v[2])}
-        for k, v in flags.items()
-    }
+    rows['total_variation']['cells'] = tv_cells
 
     # ------------------------------------------------------------ population realism, imposter side
     js_kept = []
